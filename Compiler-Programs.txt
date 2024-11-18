@@ -1,0 +1,729 @@
+1.Lexical Analyzer
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+int main()
+{
+FILE *fin = fopen("input.txt", "r");
+if (fin == NULL) {
+printf("Error: input.txt not found!\n");
+return 1;
+}
+int lineNo = 1, tokenNo = 0;
+char keywords[32][16] = {"int", "void", "if", "else", "do", "while"};
+printf("LineNo\tTokenNo\tLexeme\tTokenType\n");
+while (!feof(fin)) {
+char ch = fgetc(fin);
+if (isspace(ch) || ch == EOF) {
+if (ch == '\n') {
+lineNo++;
+}
+continue;
+}
+tokenNo++;
+if (ch == '+' || ch == '-' || ch =='*' || ch == '/' || ch == '=') {
+printf("%-7d\t%-7d\t%c\tOperator\n", lineNo, tokenNo, ch);
+} else if (ch == '(' || ch == ')' || ch == '{' || ch == '}' || ch == ';') {
+printf("%-7d\t%-7d\t%c\tSpecialSymbol\n", lineNo, tokenNo, ch);
+} else if (isdigit(ch)) {
+char value[16];
+int i = 0;
+while (isdigit(ch)) {
+value[i++] = ch;
+ch = fgetc(fin);
+}
+value[i] = '\0';
+ungetc(ch, fin);
+printf("%-7d\t%-7d\t%s\tNumber\n", lineNo, tokenNo, value);
+} else if (isalpha(ch) || ch == '_') {
+char value[16];
+int i = 0;
+while (isalnum(ch) || ch =='_') {
+value[i++] = ch;
+ch = fgetc(fin);
+}
+value[i] = '\0';
+ungetc(ch, fin);
+int isKeyword = 0;
+for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); i++) {
+if (strcmp(value, keywords[i]) == 0) {
+isKeyword= 1;
+break;
+}
+}
+if (isKeyword == 1) {
+printf("%-7d\t%-7d\t%s\tKeyword\n", lineNo, tokenNo, value);
+} else {
+printf("%-7d\t%-7d\t%s\tIdentifier\n", lineNo, tokenNo, value);
+}
+} else {
+printf("%-7d\t%-7d\t%c\tInvalidCharacter\n", lineNo, tokenNo, ch);
+}
+}
+fclose(fin);
+return 0;
+}
+
+input.txt
+void main() {
+int a = 10;
+}
+
+OUTPUT - Lexical Analyzer
+LineNo
+1
+1
+1
+1
+1
+2
+2
+2
+2
+2
+3
+
+TokenNo
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+
+Lexeme TokenType
+void
+Keyword
+main
+Identifier
+(
+SpecialSymbol
+)
+SpecialSymbol
+{
+SpecialSymbol
+int
+Keyword
+a
+Identifier
+=
+Operator
+10
+Number
+;
+SpecialSymbol
+}
+SpecialSymbol
+
+2.First and Follow
+#include<stdio.h>
+#include<string.h>
+#include<ctype.h>
+int n, m = 0, p;
+char a[10][10], f[10];
+void follow(char c);
+void first(char c);
+int main() {
+int choice;
+char c;
+printf("Enter the no of prooductions: ");
+scanf("%d", &n);
+printf("Enter the productions:\n");
+for (int i = 0; i < n; i++) {
+scanf("%s", a[i]);
+}
+do {
+m = 0;
+printf("Enter the element whose fisrt & follow is to be found: ");
+scanf(" %c", &c);
+first(c);
+printf("First(%c) = { ", c);
+for (int i = 0; i < m; i++) {
+printf("%c ", f[i]);
+}
+printf("}\n");
+strcpy(f, " ");
+m = 0;
+follow(c);
+printf("Follow(%c) = { ", c);
+for (int i = 0; i < m; i++) {
+printf("%c ", f[i]);
+}
+printf("}\n");
+printf("Continue (0/1)? ");
+scanf("%d", &choice);
+} while (choice == 1);
+return 0;
+}
+void first(char c) {
+if (!isupper(c))
+f[m++] = c;
+for (int k = 0; k < n; k++) {
+if (a[k][0] == c) {
+if (a[k][2] == '$')
+f[m++] = '$';
+else if (islower(a[k][2]))
+f[m++] = a[k][2];
+else
+first(a[k][2]);
+}
+}
+}
+void follow(char c) {
+if (a[0][0] == c)
+f[m++] = '$';
+for (int i = 0; i < n; i++) {
+for (int j = 2; j < strlen(a[i]); j++) {
+if (a[i][j] == c) {
+if (a[i][j + 1] != '\0')
+first(a[i][j + 1]);
+if (a[i][j + 1] == '\0' && c != a[i][0])
+follow(a[i][0]);
+}
+}
+}
+}
+
+OUTPUT - First & Follow
+Enter the no of prooductions: 6
+Enter the productions:
+S=xyz
+S=aBC
+B=c
+B=cd
+C=eg
+C=df
+Enter the element whose fisrt & follow is to be found: S
+First(S) = { x a }
+Follow(S) = { $ }
+Continue (0/1)? 1
+Enter the element whose fisrt & follow is to be found: B
+First(B) = { c c }
+Follow(B) = { e d }
+Continue (0/1)? 1
+Enter the element whose fisrt & follow is to be found: C
+First(C) = { e d }
+Follow(C) = { $ }
+Continue (0/1)? 0
+
+3.Shift Reduce Parser
+#include<stdio.h>
+#include<string.h>
+int k = 0, z = 0, i = 0, j = 0, c = 0;
+char a[16], ac[20], stk[15], act[10];
+void check();
+int main() {
+printf("GRAMMAR is \nE->E+E \nE->E*E \nE->(E) \nE->id\n");
+printf("\nEnter input string: ");
+scanf("%s", a);
+c = strlen(a);
+strcpy(act, "SHIFT->");
+printf("\nStack \t Input \t\tAction\n");
+printf("$\t%s$\t\n", a);
+for (k = 0, i = 0; j < c; k++, i++, j++) {
+if (a[j] == 'i' && a[j + 1] == 'd') {
+stk[i] = a[j];
+stk[i + 1] = a[j + 1];
+stk[i + 2] = '\0';
+a[j] = ' ';
+a[j + 1] = ' ';
+printf("$%s\t%s$\t%sid\n", stk, a, act);
+check();
+} else {
+stk[i] = a[j];
+stk[i + 1] = '\0';
+a[j] = ' ';
+printf("$%s\t%s$\t%ssymbols\n", stk, a, act);
+check();
+}
+}
+return 0;
+}
+void check() {
+strcpy(ac, "REDUCE TO E");
+for (z = 0; z < c; z++)
+if (stk[z] == 'i' && stk[z + 1] == 'd') {
+stk[z] = 'E';
+stk[z + 1] = '\0';
+printf("$%s\t%s$\t%s->id\n", stk, a, ac);
+j++;
+}
+for (z = 0; z < c; z++)
+if (stk[z] == 'E' && stk[z + 1] == '+' && stk[z + 2] == 'E') {
+stk[z] = 'E';
+stk[z + 1] = '\0';
+stk[z + 2] = '\0';
+printf("$%s\t%s$\t%s->E+E\n", stk, a, ac);
+i = i - 2;
+}
+for (z = 0; z < c; z++)
+if (stk[z] == 'E' && stk[z + 1] == '*' && stk[z + 2] == 'E') {
+stk[z] = 'E';
+stk[z + 1] = '\0';
+stk[z + 1] = '\0';
+printf("$%s\t%s$\t%s->E*E\n", stk, a, ac);
+i = i - 2;
+}
+for (z = 0; z < c; z++)
+if (stk[z] == '(' && stk[z + 1] == 'E' && stk[z + 2] == ')') {
+stk[z] = 'E';
+stk[z + 1] = '\0';
+stk[z + 1] = '\0';
+printf("$%s\t%s$\t%s->(E)\n", stk, a, ac);
+i = i - 2;
+}
+}
+
+OUTPUT - Shift Reduce Parser
+GRAMMAR is
+E->E+E
+E->E*E
+E->(E)
+E->id
+Enter input string: id*id+id
+Stack
+$
+$id
+$E
+$E*
+$E*id
+$E*E
+$E
+$E+
+$E+id
+$E+E
+$E
+
+Input
+id*id+id$
+*id+id$
+*id+id$
+id+id$
++id$
++id$
++id$
+id$
+
+Action
+
+$
+$
+$
+
+SHIFT->id
+REDUCE TO E->id
+SHIFT->symbols
+SHIFT->id
+REDUCE TO E->id
+REDUCE TO E->E*E
+SHIFT->symbols
+SHIFT->id
+REDUCE TO E->id
+REDUCE TO E->E+E
+
+4.Recursive Descent Parser
+#include <stdio.h>
+#include <string.h>
+void E();
+void T();
+void Eprime();
+void Tprime();
+void F();
+int i, error;
+char input[16];
+void main()
+{
+printf("Recursive Descend parser for arithmetic expn containing +, -, *, and / (eg:a+a*a)\n");
+printf("Enter an arithmetic expression: ");
+scanf("%s", input);
+E();
+if(strlen(input) == i &&error == 0)
+printf("\nAccepted..!!!\n");
+else
+printf("\nRejected..!!!\n");
+}
+void E()
+{
+T();
+Eprime();
+}
+void Eprime()
+{
+if (input[i] == '+' || input[i] == '-') {
+i++;
+T();
+Eprime();
+}
+}
+void T()
+{
+F();
+Tprime();
+}
+void Tprime()
+{
+if (input[i] == '*' || input[i] == '/') {
+i++;
+F();
+Tprime();
+}
+}
+void F()
+{
+if (input[i] == 'a') {
+i++;
+} else if (input[i] == '(') {
+i++;
+E();
+if (input[i] == ')')
+i++;
+else
+error = 1;
+} else {
+error = 1;
+}
+}
+
+OUTPUT - Recursive Descent Parser
+Recursive Descend parser for arithmetic expn containing +, -, *, and / (eg:a+a*a)
+Enter an arithmetic expression: a*a+a
+Accepted..!!!
+
+5.Epsilon Closure
+#include <stdio.h>
+#include <string.h>
+struct transition_t {
+char s1[8];
+char s2[8];
+char input_sym;
+} transitions[30];
+int main()
+{
+int n, tn = 0;
+char states[16][8];
+printf("Enter the number of states: ");
+scanf("%d", &n);
+printf("Enter the states: ");
+for (int i = 0; i < n; ++i) {
+scanf("%s", states[i]);
+}
+FILE *infile = fopen("transitions.txt", "r");
+if (infile == NULL) {
+printf("transitions.txt not found\n");
+}
+for (tn = 0; !feof(infile); tn++) {
+fscanf(infile, "%s %c %s", transitions[tn].s1, &transitions[tn].input_sym, transitions[tn].s2);
+}
+for (int i = 0; i < n; ++i) {
+printf("e-closure(%s) = { %s ", states[i], states[i]);
+char *curr_state = states[i];
+for (int j = 0; j < tn; ++j) {
+if (strcmp(transitions[j].s1, curr_state) == 0) {
+if (transitions[j].input_sym == 'e') {
+printf("%s ", transitions[j].s2);
+curr_state = transitions[j].s2;
+}
+}
+}
+printf("}\n");
+}
+return 0;
+}
+
+transitions.txt
+q0 0 q0
+q0 1 q1
+q0 e q1
+q1 1 q2
+q1 e q2
+OUTPUT - Epsilon closure
+Enter the number of states: 3
+Enter the states: q0 q1 q2
+e-closure(q0) = { q0 q1 q2 }
+e-closure(q1) = { q1 q2 }
+e-closure(q2) = { q2 }
+
+6.Lex Programs
+1. Count of Lines, Words, and Characters
+%{
+int lc = 0, wc = 0, cc = 0;
+%}
+%%
+[\n] { lc++; }
+[A-Za-z0-9]+ { wc++; cc += yyleng; }
+[ \t]+ /* ignoring whitespace */
+%%
+int main()
+{
+yyin = fopen("input.txt", "r");
+yylex();
+printf("Number of lines: %d\n", lc);
+printf("Number of words: %d\n", wc);
+printf("Number of characters: %d\n", cc);
+return 0;
+}
+int yywrap()
+{
+return 1;
+}
+
+input.txt
+Hello world
+Welcome
+OUTPUT - Count of Lines, Words, and Characters
+Number of lines: 2
+Number of words: 3
+Number of characters: 17
+
+2. Vowels and Consonants
+%{
+int vowel_cnt = 0, consonant_cnt = 0;
+%}
+%%
+[aeiouAEIOU] vowel_cnt++;
+[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ] consonant_cnt++;
+%%
+int main()
+{
+yyin = fopen("input.txt", "r");
+yylex();
+printf("Number of vowels: %d\n", vowel_cnt);
+printf("Number of consonants: %d\n", consonant_cnt);
+return 0;
+}
+int yywrap()
+{
+return 1;
+}
+
+input.txt
+Hello World
+
+OUTPUT - Vowels and Consonants
+Number of vowels: 3
+Number of consonants: 7
+
+3. Conversion of abc to ABC
+%{
+#include <stdio.h>
+%}
+%%
+(abc) {
+yytext[0] = 'A';
+yytext[1] = 'B';
+yytext[2] = 'C';
+printf("%s", yytext);
+}
+[.\n]
+{ printf("%s", yytext); }
+%%
+int main()
+{
+yyin = fopen("input.txt", "r");
+yylex();
+return 0;
+}
+int yywrap()
+{
+return 1;
+}
+
+input.txt
+abcabc2 abczagzig ABC
+OUTPUT - Vowels and Consonants
+ABCABC2 ABCzagzig ABC
+
+7.YACC Programs
+1. Arithmetic Expression
+Lex file
+%{
+#include "y.tab.h"
+%}
+%%
+[0-9]+(\.[0-9]*)?
+{ return NUMBER; }
+[ \t]+
+/* skipping whitespace */
+.
+{ return yytext[0]; }
+\n
+{ return 0; }
+%%
+int yywrap()
+{
+return 1;
+}
+
+Yacc file
+%{
+#include <stdio.h>
+int valid = 1;
+%}
+%token NUMBER
+%left '+' '-'
+%left '*' '/'
+%%
+E: E '+' E
+| E '-' E
+| E '*' E
+| E '/' E
+| '(' E ')'
+| '-' E
+| NUMBER
+%%
+int yyerror()
+{
+valid = 0;
+printf("Invalid expression\n");
+return 1;
+}
+int main()
+{
+printf("Enter an expression: ");
+yyparse();
+if (valid) {
+printf("Valid expression\n");
+}
+return 0;
+}
+
+OUTPUT - Arithmetic Expression
+Enter an expression: 5.2+(6/-2)
+Valid expression
+
+Enter an expression: /2
+Invalid expression
+
+2. YACC - IDENTIFIERS
+Lex file
+%{
+#include "y.tab.h"
+%}
+%%
+[0-9]+
+{ return DIGIT; }
+[a-zA-Z]+
+{ return LETTER; }
+.
+{ return yytext[0]; }
+\n
+{ return 0; }
+%%
+int yywrap()
+{
+return 1;
+}
+
+YACC file
+%{
+#include <stdio.h>
+int valid = 1;
+%}
+%token LETTER DIGIT
+%%
+ID: LETTER S
+S: LETTER S
+| DIGIT S
+|
+;
+%%
+int yyerror()
+{
+valid = 0;
+printf("Invalid identifier\n");
+return 1;
+}
+int main()
+{
+printf("Enter an identifier: ");
+yyparse();
+if (valid) {
+printf("Valid identifier\n");
+}
+return 0;
+}
+
+OUTPUT - Identifier
+Enter an identifier: abc45def
+Valid identifier
+
+Enter an identifier: 0abc
+Invalid identifier
+
+3. YACC - CALCULATOR
+Lex file
+%{
+#include "y.tab.h"
+extern int yylval;
+%}
+%%
+[0-9]+ {
+yylval = atoi(yytext);
+return NUMBER;
+}
+[ \t]+
+;
+.
+{ return yytext[0]; }
+\n
+{ return 0; }
+%%
+int yywrap()
+{
+return 1;
+}
+
+YACC file
+%{
+#include <stdio.h>
+int result = 0;
+%}
+%token NUMBER
+%left '+' '-'
+%left '*' '/'
+%left '(' ')'
+%%
+RESULT: E {
+printf("Result: %d\n", $$);
+return 0;
+}
+E: E '+' E
+{ $$ = $1 + $3; }
+| E '-' E
+{ $$ = $1 - $3; }
+| E '*' E
+{ $$ = $1 * $3; }
+| E '/' E
+{ $$ = $1 / $3; }
+| '(' E ')'
+{ $$ = $2; }
+| '-' E
+{ $$ = -$2; }
+| NUMBER
+{ $$ = $1; }
+%%
+int yyerror()
+{
+printf("Invalid expression\n");
+return 1;
+}
+int main()
+{
+printf("Enter an expression: ");
+yyparse();
+return 0;
+}
+
+OUTPUT - Calculator
+Enter an expression: 2+5*3
+Result: 17
+
+Enter an expression: 1-/2
+Invalid expression
+
+
